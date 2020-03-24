@@ -1,0 +1,12 @@
+
+- write a function that generates a random source phase spectrum or time series (time series can be without amplitude information)
+
+- (Maybe: include a spatial correlation length to the previous function)
+
+- write a function that calls the random source-generating function, and uses it to build up time series of noise at a station
+
+- write a script that gets time series of noise at two stations; then get their correlation
+
+- fit everything into noisi by updating calls from main, config files and config file comments
+
+
