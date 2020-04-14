@@ -6,7 +6,8 @@ from obspy.signal.invsim import cosine_taper
 import matplotlib.pyplot as plt
 
 
-def kristiinas_source_generator(duration, n_sources=1, domain="time", npad=None): # ...plus other parameters as needed
+def kristiinas_source_generator(duration, n_sources=1, domain="time"):
+ # ...plus other parameters as needed
     # put the function here that generates a random source
     # according to parameters given by the user
     if domain == "time":
@@ -17,12 +18,8 @@ def kristiinas_source_generator(duration, n_sources=1, domain="time", npad=None)
 
     elif domain == "frequency":
 
-        if npad is not None:
-            freq = np.fft.rfftfreq(n=npad)
-        else:
-            freq = np.fft.rfftfreq(n=duration)
-
-        a = np.random.random(freq.shape) - 0.5
+        freq = np.fft.rfftfreq(n=duration)
+        a = np.random.random(freq.shape)
     else:
         raise ValueError("Unknown domain " + domain)
 
@@ -31,7 +28,7 @@ def kristiinas_source_generator(duration, n_sources=1, domain="time", npad=None)
 
 def generate_timeseries(input_files, all_conf, nsrc,
                         all_ns, taper, debug_plot,
-                        domain="time"):
+                        domain="time", n_sources=1):
     """
     Generate a long time series of noise at two stations
     (one station in case of autocorrelation)
@@ -51,12 +48,14 @@ def generate_timeseries(input_files, all_conf, nsrc,
 
     """
 
+    # first the Green's functions are opened
     wf1 = WaveField(input_files[0])
     if input_files[0] != input_files[1]:
         wf2 = WaveField(input_files[1])
     else: # autocorrelation: only one Trace is needed
         wf2 = None
 
+    # the noise source power spectral density model is opened
     nsrc = NoiseSource(nsrc)
     # in noisi, different frequency bands have different source distributions.
     # Let's work with one frequency band for the moment. Later on, we'll superpose 
@@ -79,33 +78,36 @@ def generate_timeseries(input_files, all_conf, nsrc,
         tempspec2 = np.zeros(len(freq_axis), dtype=np.complex)
         fd_taper = cosine_taper(len(freq_axis), 0.1)
 
-    # loop over source locationshttps:
+    # loop over source locations
     for i in range(wf1.stats["ntraces"]):
+
+        # read gren's functions
         g1 = np.ascontiguousarray(wf1.data[i, :] * taper)
         if trace2 is None:
             g2 = g1
         else:
-            g2 = np.ascontiguousarray(wf1.data[i, :] * taper)
-        source_amplitude = nsrc.distr_basis[i, ix_f] * nsrc.spect_basis[ix_f]
-
+            g2 = np.ascontiguousarray(wf2.data[i, :] * taper)
 
         # two possibilities here:
         # a) FFT Green's function, define the random spectrum in
         # Fourier domain, and multiply, then inverse FFT
 
         if domain == "frequency":
+            # read source power spectral density
+            source_amplitude = nsrc.distr_basis[i, ix_f] * nsrc.spect_basis[ix_f]
+
+            # Question for Eleonore: Should we take the square root of the Power spectrum 
+            # and multiply by df?
+
+            # since the spectrum of the noise source model in noisi is generally 
             f = interp1d(np.fft.rfftfreq(n=wf1.stats["npad"], d=wf1.stats["Fs"]), source_amplitude)
             source_amplitude = f(freq_axis)
-            # FFT can be done using rfft (real FFT)
-            # read Green's functions
-            s1 = np.ascontiguousarray(wf1.data[i, :] * taper)
-            s2 = np.ascontiguousarray(wf2.data[i, :] * taper)
             # Fourier transform for real input
             # Before Fourier transform, the time series is zero-padded.
-            # this can be used here in order to fill the whole time series
+            # this can be used here in order to cover the whole time series
             # duration.            
-            spec1 = np.fft.rfft(s1, duration)
-            spec2 = np.fft.rfft(s2, duration)
+            spec1 = np.fft.rfft(g1, duration)
+            spec2 = np.fft.rfft(g2, duration)
 
             # call the function to get the random phase spectrum
             source_phase = kristiinas_source_generator(duration, domain="frequency")
@@ -124,15 +126,18 @@ def generate_timeseries(input_files, all_conf, nsrc,
             # a = sqrt(r ** 2 / (1 + tan phi))
 
             # time series 1
-            tan_phi = np.tan(np.pi * source_phase)
+            tan_phi = np.tan(2. * np.pi * source_phase)
             a_real= np.sqrt((source_amplitude ** 2) / (1 + tan_phi ** 2))
             b_imag = tan_phi * a_real
-            tempspec1 += (a_real + 1.j * b_imag) * spec1
+            # this is: Convolution of random source and Green's function
+            # scaled by surface area of this source location
+            tempspec1 += (a_real + 1.j * b_imag) * spec1 / nsrc.surf_area[i]
 
             # time series 2
-            a_real= np.sqrt((source_amplitude ** 2) / (1 + tan_phi ** 2))
-            b_imag = tan_phi * a_real
-            tempspec2 += (a_real + 1.j * b_imag) * spec2
+            if trace2 is not None:
+                tempspec2 += (a_real + 1.j * b_imag) * spec2 / nsrc.surf_area[i]
+
+            # plot
             if debug_plot and i % 500 == 0:
                 print("Created {} of {} source spectra.".format(i, wf1.stats["ntraces"]))
                 ts = np.fft.ifftshift(np.fft.irfft(fd_taper * (a_real + 1.j * b_imag), n=npad))
@@ -142,26 +147,27 @@ def generate_timeseries(input_files, all_conf, nsrc,
         # and run convolution in the frequency domain by scipy
         # I may have driven my PhD advisor insane with my love for the time domain
         elif domain == "time":
+            source_amplitude = np.fft.irfft(nsrc.distr_basis[i, ix_f] * nsrc.spect_basis[ix_f],
+                                            n=duration)
             # steps here would be:
             # call the function that gets the random onset time series
-            source_phase = kristiinas_source_generator(duration, domain="time")  # random should be easy to implement here; 
+            source_phase = kristiinas_source_generator(duration, domain="time", n_sources=n_sources)  
             # it becomes a bit more complicated if there is spatial correlation
-            
+            source = fftconvolve(source_amplitude, source_phase, mode="full")
 
-            trace1 += fftconvolve(g1, source_amplitude * source_phase, mode="full")[0: len(trace1)]
+            trace1 += fftconvolve(g1, source, mode="full")[0: len(trace1)] / nsrc.surf_area[i] / n_sources
 
             if trace2 is not None:
-                trace2 += fftconvolve(g2, source_amplitude * source_phase, mode="full")[0: len(trace1)]
+                trace2 += fftconvolve(g2, source, mode="full")[0: len(trace1)] / nsrc.surf_area[i] / n_sources
 
-                if debug_plot and i % 300 == 0:
-                    ts = fftconvolve(g2, source_amplitude * source_phase, mode="full")
-                    plt.plot(ts / ts.max() + i * 0.005)
+            if debug_plot and i % 300 == 0:
+                print("Created {} of {} source spectra.".format(i, wf1.stats["ntraces"]))
+                ts = fftconvolve(g1, source, mode="full") / nsrc.surf_area[i] / n_sources
+                plt.plot(ts / ts.max() + i * 0.005)
 
     if domain == "frequency":
         # Finally, irfft (inverse fft for real-valued time series) 
         # needs to be called to get the time series
-        tempspec1 -= np.mean(tempspec1)
-        tempspec2 -= np.mean(tempspec2)
         trace1[0: duration] = np.fft.ifftshift(np.fft.irfft(fd_taper * tempspec1, n=duration))
         trace2[0: duration] = np.fft.ifftshift(np.fft.irfft(fd_taper * tempspec2, n=duration))
     if debug_plot:
@@ -177,7 +183,7 @@ def generate_timeseries(input_files, all_conf, nsrc,
 # we'll "plug" it into noisi so that we can use the bookkeeping which noisi 
 # provides (organizing input and output files etc)
 
-domain = "frequency" # or "time"
+domain = "time" # or "time"
 input_files = ["/home/lermert/Desktop/example/example/greens/G.SSB..MXZ.h5", 
                "/home/lermert/Desktop/example/example/greens/MN.BNI..MXZ.h5"]
 nsrc = "/home/lermert/Desktop/example/example/source_1/iteration_0/starting_model.h5"
@@ -187,6 +193,7 @@ with WaveField(input_files[0]) as wf_test:
     fs = wf_test.stats["Fs"]
 taper = cosine_taper(all_ns[0])
 debug_plot = True
+# -----------------------------------------------------------------------------
 
 trace1, trace2, source =  generate_timeseries(input_files, all_conf, nsrc,
                                               all_ns, taper, debug_plot, domain=domain)
@@ -207,7 +214,8 @@ if domain == "frequency":
     freqaxis = np.fft.rfftfreq(n=duration, d=fs)
     plt.plot(freqaxis, source * np.pi)
     plt.xlabel("Frequency (Hz)")
-    plt.ylabel("An example source phase")
+    plt.ylabel("Phase (radians)")
+    plt.yticks([0.0, np.pi / 2., np.pi], ["0.0", "\u03C0", "2 \u03C0"])
 
 fig.add_subplot(312)
 plt.plot(taxis, trace1, 'g')
