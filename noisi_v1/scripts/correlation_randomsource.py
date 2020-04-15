@@ -30,6 +30,7 @@ def kristiinas_source_generator(duration, n_sources=1, domain="time"):
 def generate_timeseries(input_files, all_conf, nsrc,
                         all_ns, taper, debug_plot,
                         domain="frequency", n_sources=1):
+
     """
     Generate a long time series of noise at two stations
     (one station in case of autocorrelation)
