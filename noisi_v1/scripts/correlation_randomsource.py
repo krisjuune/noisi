@@ -4,11 +4,12 @@ from scipy.signal import fftconvolve
 from scipy.interpolate import interp1d
 from obspy.signal.invsim import cosine_taper
 import matplotlib.pyplot as plt
+from math import pi
 
 
 def kristiinas_source_generator(duration, n_sources=1, domain="time"):
  # ...plus other parameters as needed
-    # put the function here that generates a random source
+    # put the function here that generates a random phase spectrum
     # according to parameters given by the user
     if domain == "time":
 
@@ -28,11 +29,11 @@ def kristiinas_source_generator(duration, n_sources=1, domain="time"):
 
 def generate_timeseries(input_files, all_conf, nsrc,
                         all_ns, taper, debug_plot,
-                        domain="time", n_sources=1):
+                        domain="frequency", n_sources=1):
+
     """
     Generate a long time series of noise at two stations
     (one station in case of autocorrelation)
-
     input_files: list of 2 wave field files
     all_conf: Configuration object
     nsrc: Path to noise source file containing spatial
@@ -45,7 +46,6 @@ def generate_timeseries(input_files, all_conf, nsrc,
     and fs is the sampling rate.
     taper: cosine taper with length nt 
     (tapering helps avoid FFT artefacts)
-
     """
 
     # first the Green's functions are opened
@@ -72,7 +72,6 @@ def generate_timeseries(input_files, all_conf, nsrc,
         trace2 = None
 
     if domain == "frequency":
-        #npad = wf1.stats['npad']
         freq_axis = np.fft.rfftfreq(n=duration, d=1. / wf1.stats["Fs"])
         tempspec1 = np.zeros(len(freq_axis), dtype=np.complex)
         tempspec2 = np.zeros(len(freq_axis), dtype=np.complex)
@@ -80,7 +79,7 @@ def generate_timeseries(input_files, all_conf, nsrc,
     # loop over source locations
     for i in range(wf1.stats["ntraces"]):
 
-        # read gren's functions
+        # read green's functions
         g1 = np.ascontiguousarray(wf1.data[i, :] * taper)
         if trace2 is None:
             g2 = g1
@@ -97,7 +96,6 @@ def generate_timeseries(input_files, all_conf, nsrc,
 
             # Question for Eleonore: Should we take the square root of the Power spectrum 
             # and multiply by df?
-
             f = interp1d(np.fft.rfftfreq(n=wf1.stats["npad"], d=1./wf1.stats["Fs"]), source_amplitude)
             source_amplitude = f(freq_axis)
             # Fourier transform for real input
@@ -176,10 +174,17 @@ def generate_timeseries(input_files, all_conf, nsrc,
 # provides (organizing input and output files etc)
 
 domain = "frequency" # or "time"
-input_files = ["/home/lermert/Desktop/example/example/greens/G.SSB..MXZ.h5", 
-               "/home/lermert/Desktop/example/example/greens/MN.BNI..MXZ.h5"]
-nsrc = "/home/lermert/Desktop/example/example/source_1/iteration_0/starting_model.h5"
-all_conf = {"timeseries_duration_seconds": 7200}
+
+# input_files = ["/home/lermert/Desktop/example/example/greens/G.SSB..MXZ.h5", 
+#                "/home/lermert/Desktop/example/example/greens/MN.BNI..MXZ.h5"]
+# nsrc = "/home/lermert/Desktop/example/example/source_1/iteration_0/starting_model.h5"
+# all_conf = {"timeseries_duration_seconds": 7200}
+
+input_files = ["axisem/greens/NET.ST0..MXZ.383_175.gauss.larger.h5", 
+               "axisem/greens/NET.ST0..MXZ.367_155.gauss.larger.h5"]
+nsrc = "axisem/blob_N/iteration_0/starting_model.h5"
+all_conf = {"timeseries_duration_seconds": 300}
+
 with WaveField(input_files[0]) as wf_test:
     all_ns = [wf_test.stats["nt"], 0, 0, wf_test.stats["Fs"]]
     fs = wf_test.stats["Fs"]
