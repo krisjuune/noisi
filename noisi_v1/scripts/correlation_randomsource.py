@@ -105,7 +105,7 @@ def generate_timeseries(input_files, all_conf, nsrc,
             # read source power spectral density
             if noisi_src: 
                 source_amplitude = nsrc.distr_basis[i, ix_f] * nsrc.spect_basis[ix_f]
-            else:
+            else: # for eleonore's source
                 lat = sourcegrid[0,i]
                 lon = sourcegrid[0,i]
                 ix_f = find_nearest(nfreqs, freq_PSD) # this step unnecessary if loop over freqs
@@ -261,6 +261,7 @@ def generate_timeseries_nonrandom(input_files, all_conf, nsrc,
 
             if debug_plot and i % 300 == 0:
                 ts = fftconvolve(g2, source_t, mode="full") * nsrc.surf_area[i]
+
                 plt.plot(ts / ts.max() + i * 0.005)
     if debug_plot:
         plt.title("Example signals from individual sources")
