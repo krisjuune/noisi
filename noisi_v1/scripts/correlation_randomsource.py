@@ -4,6 +4,7 @@ from scipy.signal import fftconvolve
 from scipy.interpolate import interp1d
 from obspy.signal.invsim import cosine_taper
 import matplotlib.pyplot as plt
+from obspy import Trace
 
 
 def kristiinas_source_generator(duration, n_sources=1, domain="time"):
@@ -133,18 +134,18 @@ def generate_timeseries(input_files, all_conf, nsrc,
             # then: Convolution of random source and Green's function
             # scaled by surface area of this source location
             p = np.fft.irfft(source_amplitude * P, n=duration)
-            trace1 += fftconvolve(g1, p, mode="full")[0: duration] / nsrc.surf_area[i]
+            trace1 += fftconvolve(g1, p, mode="full")[0: duration] * nsrc.surf_area[i]
 
             # time series 2
             if trace2 is not None:
-                trace2 += fftconvolve(g2, p, mode="full")[0: duration] / nsrc.surf_area[i]
+                trace2 += fftconvolve(g2, p, mode="full")[0: duration] * nsrc.surf_area[i]
                 #tempspec2 += spec2 * p / nsrc.surf_area[i]
 
             # plot
             if debug_plot and i % 500 == 0:
                 print("Created {} of {} source spectra.".format(i, wf1.stats["ntraces"]))
                 #ts = np.fft.irfft(fd_taper * p, n=duration)
-                ts = fftconvolve(g1, p, mode="full")[0: duration] / nsrc.surf_area[i]
+                ts = fftconvolve(g1, p, mode="full")[0: duration] * nsrc.surf_area[i]
                 plt.plot(ts / ts.max() + i * 0.005)
 
             # correlation TODO
@@ -152,7 +153,6 @@ def generate_timeseries(input_files, all_conf, nsrc,
             #     c = np.multiply(np.conjugate(tempspec1), tempspec2) 
             #     correlation += my_centered(np.fft.ifftshift(np.fft.irfft(c, all_ns[1])),
             #                            all_ns[2]) * nsrc.surf_area[i]
-
 
         # b) define a time series with random "onsets" in time domain,
         # and run convolution in the frequency domain by scipy
@@ -166,14 +166,14 @@ def generate_timeseries(input_files, all_conf, nsrc,
             # it becomes a bit more complicated if there is spatial correlation
             source = fftconvolve(source_amplitude, source_phase, mode="full")
 
-            trace1 += fftconvolve(g1, source, mode="full")[0: len(trace1)] / nsrc.surf_area[i] / n_sources
+            trace1 += fftconvolve(g1, source, mode="full")[0: len(trace1)] * nsrc.surf_area[i] / n_sources
 
             if trace2 is not None:
-                trace2 += fftconvolve(g2, source, mode="full")[0: len(trace1)] / nsrc.surf_area[i] / n_sources
+                trace2 += fftconvolve(g2, source, mode="full")[0: len(trace1)] * nsrc.surf_area[i] / n_sources
 
             if debug_plot and i % 500 == 0:
                 print("Created {} of {} source spectra.".format(i, wf1.stats["ntraces"]))
-                ts = fftconvolve(g1, source, mode="full") / nsrc.surf_area[i] / n_sources
+                ts = fftconvolve(g1, source, mode="full") * nsrc.surf_area[i] / n_sources
                 plt.plot(ts / ts.max() + i * 0.005)
 
             # if get_correlation: 
@@ -201,6 +201,7 @@ def generate_timeseries(input_files, all_conf, nsrc,
 
 def generate_timeseries_nonrandom(input_files, all_conf, nsrc,
                                   all_ns, taper, debug_plot=False):
+
     """
     Generate a long time series of noise at two stations
     (one station in case of autocorrelation)
@@ -239,21 +240,27 @@ def generate_timeseries_nonrandom(input_files, all_conf, nsrc,
 
     # loop over source locations
     for i in range(wf1.stats["ntraces"]):
-        source_t = np.ones(duration)
+
+        source_t = np.ones(duration)  #np.ones(duration)
+        source_t[int(duration // 10)] = 1.  # change by Laura because if we want to see exclusively the Green's function
+        # we need a "delta function" as source; if not, we will see an integral of the Green's function
+        source_amplitude = nsrc.distr_basis[i, ix_f]
+        source_t *= source_amplitude
+        
         g1 = np.ascontiguousarray(wf1.data[i, :] * taper)
         if trace2 is None:
             g2 = g1
         else:
             g2 = np.ascontiguousarray(wf2.data[i, :] * taper)
-        source_amplitude = nsrc.distr_basis[i, ix_f]
-
-        trace1 += fftconvolve(g1, source_amplitude * source_t, mode="full")[0: len(trace1)]
+        
+        trace1 += fftconvolve(g1, source_t, mode="full")[0: len(trace1)] * nsrc.surf_area[i]  
+        # added: normalization by surface area
 
         if trace2 is not None:
-            trace2 += fftconvolve(g2, source_amplitude * source_t, mode="full")[0: len(trace1)]
+            trace2 += fftconvolve(g2, source_t, mode="full")[0: len(trace1)] * nsrc.surf_area[i]
 
             if debug_plot and i % 300 == 0:
-                ts = fftconvolve(g2, source_amplitude * source_t, mode="full")
+                ts = fftconvolve(g2, source_t, mode="full") * nsrc.surf_area[i]
                 plt.plot(ts / ts.max() + i * 0.005)
     if debug_plot:
         plt.title("Example signals from individual sources")
@@ -262,8 +269,8 @@ def generate_timeseries_nonrandom(input_files, all_conf, nsrc,
     return(trace1, trace2, source_t)
 
 
-def get_moveout(input_files, nsrc, all_conf, all_ns, taper, 
-                debug_plot=False, domain="frequency", 
+def get_moveout(input_files, nsrc, all_conf, all_ns, taper,
+                debug_plot=False, domain="frequency",
                 n_sources=1, j=3, n_loc=[38.7, -15.5]):
     """
     Get moveout plot of convolved traces for every j-th station listed in input_files. 
@@ -288,7 +295,6 @@ def get_moveout(input_files, nsrc, all_conf, all_ns, taper,
             a, b = get_cartesian_distance(lon, lat, src_lat=n_loc[0], src_lon=n_loc[1])
             c = np.sqrt(a**2 + b**2)
             sorted_files += [[input_files[i], c]]
-    
     # sort input_files for src-recv distances
     sorted_files = sorted(sorted_files, key = lambda x: x[1])
 
@@ -326,6 +332,24 @@ def get_moveout(input_files, nsrc, all_conf, all_ns, taper,
     axes.set_xlabel('Time (s)')
     axes.set_ylabel('Station')
     plt.show()
+
+
+def get_correlation(trace1, trace2, wlen_samples, mlag_samples):
+    ix = 0
+    nw = 0
+    while ix < len(trace1) - wlen_samples:
+        win1 = trace1[ix: ix + wlen_samples]
+        win2 = trace2[ix: ix + wlen_samples]
+
+        wcorr = fftconvolve(win1[::-1], win2, mode="same")
+
+        if "correlation" not in locals():
+            correlation = np.zeros(len(wcorr))
+        correlation += wcorr
+        nw += 1
+        ix += wlen_samples
+    corr_len = 2 * mlag_samples + 1
+    return(my_centered(correlation, corr_len) / nw)
             
 # -----------------------------------------------------------------------------
 # Below, input values are directly provided right now for experimenting without
@@ -337,28 +361,42 @@ domain = "frequency" # or "time"
 input_files = ["axisem/greens/NET.ST0..MXZ.383_175.gauss.larger.h5", 
                "axisem/greens/NET.ST0..MXZ.367_155.gauss.larger.h5"]
 nsrc = "axisem/blob_N/iteration_0/starting_model.h5"
-all_conf = {"timeseries_duration_seconds": 300}
+sourcegrid = "axisem/sourcegrid.npy"
+all_conf = {"timeseries_duration_seconds": 3600}
 with WaveField(input_files[0]) as wf_test:
-    all_ns = [wf_test.stats["nt"], 0, 0, wf_test.stats["Fs"]]
+    all_ns = [wf_test.stats["nt"], wf_test.stats["npad"], 0, wf_test.stats["Fs"]]
     fs = wf_test.stats["Fs"]
 taper = cosine_taper(all_ns[0])
 debug_plot = True
+maximum_lag_in_seconds = 100
+wlen_in_seconds = 300   # ideally like 10 times max. lag in seconds
+
 # -----------------------------------------------------------------------------
 
 trace1, trace2, source =  generate_timeseries(input_files, all_conf, nsrc,
-                                              all_ns, taper, debug_plot, domain=domain)
+                                              all_ns, taper, sourcegrid, debug_plot, domain=domain)
+
+
+
+maximum_lag_in_samples = int(round(maximum_lag_in_seconds * fs))
+wlen_in_samples = int(round(wlen_in_seconds * fs))
+corr = get_correlation(trace1, trace2, wlen_in_samples, maximum_lag_in_samples)
+corrtrace = Trace(data=corr)
+corrtrace.stats.sampling_rate = fs
+corrtrace.write("some_correlation.sac", format="SAC")
 
 import matplotlib.pyplot as plt
 
+
 fig = plt.figure()
-fig.add_subplot(311)
+fig.add_subplot(411)
 duration = int(round(all_conf["timeseries_duration_seconds"] * all_ns[-1]))
-taxis = np.linspace(0, all_conf["timeseries_duration_seconds"], duration)
+taxis = np.linspace(0, duration, duration)
 
 if domain == "time":
     plt.plot(taxis, source)
     plt.xlabel("Time (s)")
-    plt.ylabel("An example source \"trigger\" (-)")
+    plt.ylabel("Ex. src (-)")
 
 if domain == "frequency":
     freqaxis = np.fft.rfftfreq(n=duration, d=fs)
@@ -367,14 +405,22 @@ if domain == "frequency":
     plt.ylabel("Phase (radians)")
     plt.yticks([0.0, np.pi / 2., np.pi], ["0.0", "\u03C0", "2 \u03C0"])
 
-fig.add_subplot(312)
+fig.add_subplot(412)
 plt.plot(taxis, trace1, 'g')
 plt.xlabel("Time (s)")
-plt.ylabel("Displacement (m)")
+plt.ylabel("DIS (m)")
 
-fig.add_subplot(313)
+fig.add_subplot(413)
 plt.plot(taxis, trace2, 'r')
 plt.xlabel("Time (s)")
-plt.ylabel("Displacement (m)")
+plt.ylabel("DIS (m)")
+
+
+fig.add_subplot(414)
+lagaxis = np.linspace(-maximum_lag_in_seconds, maximum_lag_in_seconds, len(corr))
+plt.plot(lagaxis, corr, "purple")
+plt.xlabel("Lag (s)")
+plt.ylabel("C")
+
 plt.tight_layout()
 plt.show()
