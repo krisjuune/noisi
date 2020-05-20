@@ -104,7 +104,7 @@ def generate_timeseries(input_files, all_conf, nsrc,
             # read source power spectral density
             if noisi_src: 
                 source_amplitude = nsrc.distr_basis[i, ix_f] * nsrc.spect_basis[ix_f]
-            else:
+            else: # for eleonore's source
                 lat = sourcegrid[0,i]
                 lon = sourcegrid[0,i]
                 ix_f = find_nearest(nfreqs, freq_PSD) # this step unnecessary if loop over freqs
@@ -133,18 +133,18 @@ def generate_timeseries(input_files, all_conf, nsrc,
             # then: Convolution of random source and Green's function
             # scaled by surface area of this source location
             p = np.fft.irfft(source_amplitude * P, n=duration)
-            trace1 += fftconvolve(g1, p, mode="full")[0: duration] / nsrc.surf_area[i]
+            trace1 += fftconvolve(g1, p, mode="full")[0: duration] * nsrc.surf_area[i]
 
             # time series 2
             if trace2 is not None:
-                trace2 += fftconvolve(g2, p, mode="full")[0: duration] / nsrc.surf_area[i]
+                trace2 += fftconvolve(g2, p, mode="full")[0: duration] * nsrc.surf_area[i]
                 #tempspec2 += spec2 * p / nsrc.surf_area[i]
 
             # plot
             if debug_plot and i % 500 == 0:
                 print("Created {} of {} source spectra.".format(i, wf1.stats["ntraces"]))
                 #ts = np.fft.irfft(fd_taper * p, n=duration)
-                ts = fftconvolve(g1, p, mode="full")[0: duration] / nsrc.surf_area[i]
+                ts = fftconvolve(g1, p, mode="full")[0: duration] * nsrc.surf_area[i]
                 plt.plot(ts / ts.max() + i * 0.005)
 
             # correlation TODO
@@ -166,10 +166,10 @@ def generate_timeseries(input_files, all_conf, nsrc,
             # it becomes a bit more complicated if there is spatial correlation
             source = fftconvolve(source_amplitude, source_phase, mode="full")
 
-            trace1 += fftconvolve(g1, source, mode="full")[0: len(trace1)] / nsrc.surf_area[i] / n_sources
+            trace1 += fftconvolve(g1, source, mode="full")[0: len(trace1)] * nsrc.surf_area[i] / n_sources
 
             if trace2 is not None:
-                trace2 += fftconvolve(g2, source, mode="full")[0: len(trace1)] / nsrc.surf_area[i] / n_sources
+                trace2 += fftconvolve(g2, source, mode="full")[0: len(trace1)] * nsrc.surf_area[i] / n_sources
 
             if debug_plot and i % 500 == 0:
                 print("Created {} of {} source spectra.".format(i, wf1.stats["ntraces"]))
@@ -247,13 +247,13 @@ def generate_timeseries_nonrandom(input_files, all_conf, nsrc,
             g2 = np.ascontiguousarray(wf2.data[i, :] * taper)
         source_amplitude = nsrc.distr_basis[i, ix_f]
 
-        trace1 += fftconvolve(g1, source_amplitude * source_t, mode="full")[0: len(trace1)]
+        trace1 += fftconvolve(g1, source_amplitude * source_t, mode="full")[0: len(trace1)] * nsrc.surf_area[i]
 
         if trace2 is not None:
-            trace2 += fftconvolve(g2, source_amplitude * source_t, mode="full")[0: len(trace1)]
+            trace2 += fftconvolve(g2, source_amplitude * source_t, mode="full")[0: len(trace1)] * nsrc.surf_area[i]
 
             if debug_plot and i % 300 == 0:
-                ts = fftconvolve(g2, source_amplitude * source_t, mode="full")
+                ts = fftconvolve(g2, source_amplitude * source_t, mode="full") * nsrc.surf_area[i]
                 plt.plot(ts / ts.max() + i * 0.005)
     if debug_plot:
         plt.title("Example signals from individual sources")

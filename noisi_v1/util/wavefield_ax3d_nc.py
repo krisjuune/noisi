@@ -30,7 +30,7 @@ channel = 'II' # MXZ for correct
 dquantity = 'P' # DIS (-placement), VEL (-ocity), ACC (-eleration), or P (-ressure). Can be converted so not too important
 channels = {'Z': 5, 'R': 3, 'T': 4} # ENZ or RTZ, 0 vertical, 1 tranverse, 2 radial
 # channels = {'e0': 0, 'e1': 1, 'e2': 2}
-prefix = 'axisem/greens/II.bath.RTZ.'
+prefix = 'axisem/greens/g.'
 path_to_files = '../../../Desktop/bathy_Greens/'
 
 ###### get h5 files
@@ -38,7 +38,7 @@ path_to_files = '../../../Desktop/bathy_Greens/'
 for run in runs_list:
 
     input_file = path_to_files + run + '/output/stations/axisem3d_synthetics.nc'
-    f_out_name = prefix + run + '.h5'
+    f_out_name = prefix + run + '..MXZ.h5'
     input_file_path = None
 
     comm = MPI.COMM_WORLD
