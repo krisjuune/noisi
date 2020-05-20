@@ -241,7 +241,7 @@ def generate_timeseries_nonrandom(input_files, all_conf, nsrc,
     # loop over source locations
     for i in range(wf1.stats["ntraces"]):
 
-        source_t = np.ones(duration)  #np.ones(duration)
+        source_t = np.zeros(duration)  #np.ones(duration)
         source_t[int(duration // 10)] = 1.  # change by Laura because if we want to see exclusively the Green's function
         # we need a "delta function" as source; if not, we will see an integral of the Green's function
         source_amplitude = nsrc.distr_basis[i, ix_f]
