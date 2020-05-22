@@ -5,6 +5,7 @@ from scipy.interpolate import interp1d
 from obspy.signal.invsim import cosine_taper
 import matplotlib.pyplot as plt
 from obspy import Trace
+from noisi_v1.util.windows import my_centered
 
 
 def kristiinas_source_generator(duration, n_sources=1, domain="time"):
@@ -58,11 +59,7 @@ def generate_timeseries(input_files, all_conf, nsrc,
     # the noise source power spectral density model is opened
     if noisi_src:
         nsrc = NoiseSource(nsrc)
-    # in noisi, different frequency bands have different source distributions.
-    # Let's work with one frequency band for the moment. Later on, we'll superpose 
-    # a couple of frequency spectra in order to expand the spectra from the 
-    # oceanographic model.
-        ix_f = 0
+        # changing things to use the full model
     else:
         freq_PSD = 0.2 # for now... 
         ndate, PSD, nfreqs, nlons, nlats, unit = load_amplitude(nsrc)
@@ -104,7 +101,10 @@ def generate_timeseries(input_files, all_conf, nsrc,
         if domain == "frequency":
             # read source power spectral density
             if noisi_src: 
-                source_amplitude = nsrc.distr_basis[i, ix_f] * nsrc.spect_basis[ix_f]
+            #    source_amplitude = nsrc.distr_basis[i, ix_f] * nsrc.spect_basis[ix_f]
+                source_amplitude = nsrc.get_spect(i)
+                source_amplitude[source_amplitude < 0] = 0.0
+                source_amplitude = np.sqrt(source_amplitude)
             else: # for eleonore's source
                 lat = sourcegrid[0,i]
                 lon = sourcegrid[0,i]
