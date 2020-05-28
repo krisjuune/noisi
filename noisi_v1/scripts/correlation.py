@@ -245,7 +245,9 @@ def compute_correlation(input_files, all_conf, nsrc, all_ns, taper,
         rec2 = instaseis.Receiver(latitude=lat2, longitude=lon2)
     else:
         wf1 = WaveField(wf1)
+        taper1 = cosine_taper((wf1.stats["nt"]))
         wf2 = WaveField(wf2)
+        taper2 = cosine_taper((wf2.stats["nt"]))
         station1 = wf1.stats['reference_station']
         station2 = wf2.stats['reference_station']
 
@@ -279,9 +281,9 @@ def compute_correlation(input_files, all_conf, nsrc, all_ns, taper,
                                          f_r=1.e12)
             Fs = all_conf.config['wavefield_sampling_rate']
             s1 = db.get_seismograms(source=fsrc, receiver=rec1,
-                                    dt=1. / Fs)[0].data * taper
+                                    dt=1. / Fs)[0].data * taper1
             s2 = db.get_seismograms(source=fsrc, receiver=rec2,
-                                    dt=1. / Fs)[0].data * taper
+                                    dt=1. / Fs)[0].data * taper2
             s1 = np.ascontiguousarray(s1)
             s2 = np.ascontiguousarray(s2)
             spec1 = np.fft.rfft(s1, n)
@@ -290,8 +292,8 @@ def compute_correlation(input_files, all_conf, nsrc, all_ns, taper,
         else:
             if not wf1.fdomain:
                 # read Green's functions
-                s1 = np.ascontiguousarray(wf1.data[i, :] * taper)
-                s2 = np.ascontiguousarray(wf2.data[i, :] * taper)
+                s1 = np.ascontiguousarray(wf1.data[i, :] * taper1)
+                s2 = np.ascontiguousarray(wf2.data[i, :] * taper2)
                 # Fourier transform for greater ease of convolution
                 spec1 = np.fft.rfft(s1, n)
                 spec2 = np.fft.rfft(s2, n)
@@ -303,7 +305,7 @@ def compute_correlation(input_files, all_conf, nsrc, all_ns, taper,
         g1g2_tr = np.multiply(np.conjugate(spec1), spec2)
 
         # convolve noise source
-        c = np.multiply(g1g2_tr, S)
+        c = np.multiply(g1g2_tr, S[:len(g1g2_tr)])
 
         # transform back
         correlation += my_centered(np.fft.fftshift(np.fft.irfft(c, n)),
