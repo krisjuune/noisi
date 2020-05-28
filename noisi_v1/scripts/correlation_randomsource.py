@@ -1,32 +1,21 @@
 import numpy as np
-<<<<<<< HEAD
 from noisi_v1.my_classes import WaveField, NoiseSource
-=======
-from noisi_v1 import WaveField, NoiseSource
->>>>>>> d3c0d8886762072084b6c1ff8ef26583ef26098b
 from scipy.signal import fftconvolve
 from scipy.interpolate import interp1d
 from obspy.signal.invsim import cosine_taper
 import matplotlib.pyplot as plt
-<<<<<<< HEAD
 from noisi_v1.util.windows import my_centered
-=======
-from noisi_v1.util.windows import my_centered
->>>>>>> d3c0d8886762072084b6c1ff8ef26583ef26098b
 
 
 def kristiinas_source_generator(duration_in_samples, n_sources=1, domain="time"):
- # ...plus other parameters as needed
-    # put the function here that generates a random phase spectrum
-    # according to parameters given by the user
     if domain == "time":
-
+        # generate random onsets of source
         a = np.zeros(duration_in_samples)
         rix = np.random.randint(0, duration_in_samples, n_sources)
         a[rix] = 1.0
 
     elif domain == "frequency":
-
+        # generate random phase spectrum
         freq = np.fft.rfftfreq(n=duration_in_samples)
         a = np.random.random(freq.shape)
     else:
@@ -91,10 +80,7 @@ def generate_timeseries(input_files, all_conf, nsrc,
         else:
             g2 = np.ascontiguousarray(wf2.data[i, :] * td_taper)
 
-        # two possibilities here:
-        # a) FFT Green's function, define the random spectrum in
-        # Fourier domain, and multiply, then inverse FFT
-
+        # a) generate a random phase spectrum and add to noise source
         if domain == "frequency":
             # read source power spectral density
             source_amplitude = nsrc.get_spect(i)
@@ -121,16 +107,11 @@ def generate_timeseries(input_files, all_conf, nsrc,
             P = source_amplitude * np.exp(1.j * 2. * np.pi * source_phase)  # phase now between 0 and 2 pi
             #P = np.exp(1.j * 2. * np.pi * source_phase)  # phase now between 0 and 2 pi
 
-            # then: Convolution of random source and Green's function
-            # scaled by surface area of this source location
+            # Convolution of random source and Green's function scaled by surface area of this source location
             p = np.fft.irfft(P, n=duration_in_samples)
-            # if p.sum() > 1.e-25:
-            #     #plt.plot(freq_axis, np.abs(P))
-            #     plt.plot(p)
-            #     plt.show()
             
+            # time series 1
             trace1 += fftconvolve(g1, p, mode="full")[0: duration_in_samples] * nsrc.surf_area[i]
-
             # time series 2
             if trace2 is not None:
                 trace2 += fftconvolve(g2, p, mode="full")[0: duration_in_samples] * nsrc.surf_area[i]
@@ -138,11 +119,9 @@ def generate_timeseries(input_files, all_conf, nsrc,
             if debug_plot and i % 500 == 0:
                 print("Created {} of {} source spectra.".format(i, wf1.stats["ntraces"]))
                 ts = fftconvolve(g1, p, mode="full")[0: duration_in_samples] * nsrc.surf_area[i]
-                plt.plot(ts / ts.max() + i * 0.005)
+                plt.plot(ts / ts.max() + i * 0.005, color = 'darkblue')
 
-        # b) define a time series with random "onsets" in time domain,
-        # and run convolution in the frequency domain by scipy
-        # I may have driven my PhD advisor insane with my love for the time domain
+        # b) define a time series with random "onsets" in time domain, and run convolution in the frequency domain by scipy
         elif domain == "time":
             # fdfreq = np.fft.rfftfreq(n=npad, d=1. / fs)
             # f = interp1d(fdfreq, nsrc.get_spect(i), kind="cubic")
@@ -165,29 +144,14 @@ def generate_timeseries(input_files, all_conf, nsrc,
             if i % 500 == 0:
                 print("Created {} of {} source spectra.".format(i, wf1.stats["ntraces"]))
                 ts = fftconvolve(g1, source, mode="full")[0: duration_in_samples] * nsrc.surf_area[i]
-                plt.plot(ts / ts.max() + i * 0.005)
+                plt.plot(ts / ts.max() + i * 0.005, color = 'darkblue')
 
-            # if get_correlation: 
-            #     # TODO correlations for time domain
-            #     correlation += np.correlate(trace1, trace2, mode="valid") 
-            #     # should divide by surf_area?? 
-    #plt.show()
-    # if debug_plot:
-    #     plt.title("Example signals from individual source locations.")
-    #     plt.xlabel("Sample nr (-)")
-    #     plt.savefig('example_signals.png')
-    #     plt.show()
-    # if get_correlation: 
-    #     if domain == "frequency":
-    #         maxlag = int(200) # all_ns[2] * (1/all_ns[3]) gives 400 # ???? made this up 
-    #         lag = np.linspace(-maxlag, maxlag, all_ns[2])
-    #         plt.plot(lag, correlation / np.max(np.abs(correlation)))
-    #     elif domain == "time":
-    #         # some method of calculating correlation in time domain....
-    #     plt.plot(lag, correlation / np.max(np.abs(correlation)))
-    #     plt.xlabel('Correlation lag (s)')
-    #     plt.ylabel('Normalized correlation')
-    #     plt.show()
+    
+    if debug_plot:
+        plt.title("Example signals from individual source locations.")
+        plt.xlabel("Sample nr (-)")
+        plt.savefig('example_signals.png')
+        plt.show()
     return(trace1, trace2, source_phase)
 
 def generate_timeseries_nonrandom(input_files, all_conf, nsrc,
@@ -393,7 +357,6 @@ lagaxis = np.linspace(-maximum_lag_in_seconds, maximum_lag_in_seconds, len(corr)
 plt.plot(lagaxis, corr, "purple")
 plt.legend(["Max arr:\n%4.2f s" %(lagaxis[np.argmax(corr)])])
 ax.set_title("Stacked cross-corr", fontsize="medium")
-<<<<<<< HEAD
 
 plt.xlabel("Lag (s)")
 plt.ylabel("C")
@@ -404,18 +367,6 @@ trace1, trace2, source =  generate_timeseries(input_files, all_conf, nsrc,
                                              n_sources=3600)
 corr = get_correlation(trace1, trace2, wlen_in_samples, maximum_lag_in_samples)
 
-=======
-
-plt.xlabel("Lag (s)")
-plt.ylabel("C")
-
-
-trace1, trace2, source =  generate_timeseries(input_files, all_conf, nsrc,
-                                             all_ns, taper, sourcegrid, debug_plot, domain="frequency",
-                                             n_sources=3600)
-corr = get_correlation(trace1, trace2, wlen_in_samples, maximum_lag_in_samples)
-
->>>>>>> d3c0d8886762072084b6c1ff8ef26583ef26098b
 ax = fig.add_subplot(322)
 
 freqaxis = np.fft.rfftfreq(n=duration_in_samples, d=1 / fs)
@@ -447,8 +398,4 @@ plt.ylabel("C")
 
 plt.tight_layout()
 plt.savefig("basic_randomphase_and_correlations.png")
-<<<<<<< HEAD
 plt.show()
-=======
-plt.show()
->>>>>>> d3c0d8886762072084b6c1ff8ef26583ef26098b
