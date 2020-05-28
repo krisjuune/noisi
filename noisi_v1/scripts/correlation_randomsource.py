@@ -1,10 +1,18 @@
 import numpy as np
+<<<<<<< HEAD
 from noisi_v1.my_classes import WaveField, NoiseSource
+=======
+from noisi_v1 import WaveField, NoiseSource
+>>>>>>> d3c0d8886762072084b6c1ff8ef26583ef26098b
 from scipy.signal import fftconvolve
 from scipy.interpolate import interp1d
 from obspy.signal.invsim import cosine_taper
 import matplotlib.pyplot as plt
+<<<<<<< HEAD
 from noisi_v1.util.windows import my_centered
+=======
+from noisi_v1.util.windows import my_centered
+>>>>>>> d3c0d8886762072084b6c1ff8ef26583ef26098b
 
 
 def kristiinas_source_generator(duration_in_samples, n_sources=1, domain="time"):
@@ -385,6 +393,7 @@ lagaxis = np.linspace(-maximum_lag_in_seconds, maximum_lag_in_seconds, len(corr)
 plt.plot(lagaxis, corr, "purple")
 plt.legend(["Max arr:\n%4.2f s" %(lagaxis[np.argmax(corr)])])
 ax.set_title("Stacked cross-corr", fontsize="medium")
+<<<<<<< HEAD
 
 plt.xlabel("Lag (s)")
 plt.ylabel("C")
@@ -395,6 +404,18 @@ trace1, trace2, source =  generate_timeseries(input_files, all_conf, nsrc,
                                              n_sources=3600)
 corr = get_correlation(trace1, trace2, wlen_in_samples, maximum_lag_in_samples)
 
+=======
+
+plt.xlabel("Lag (s)")
+plt.ylabel("C")
+
+
+trace1, trace2, source =  generate_timeseries(input_files, all_conf, nsrc,
+                                             all_ns, taper, sourcegrid, debug_plot, domain="frequency",
+                                             n_sources=3600)
+corr = get_correlation(trace1, trace2, wlen_in_samples, maximum_lag_in_samples)
+
+>>>>>>> d3c0d8886762072084b6c1ff8ef26583ef26098b
 ax = fig.add_subplot(322)
 
 freqaxis = np.fft.rfftfreq(n=duration_in_samples, d=1 / fs)
@@ -426,4 +447,8 @@ plt.ylabel("C")
 
 plt.tight_layout()
 plt.savefig("basic_randomphase_and_correlations.png")
+<<<<<<< HEAD
 plt.show()
+=======
+plt.show()
+>>>>>>> d3c0d8886762072084b6c1ff8ef26583ef26098b
